@@ -403,7 +403,7 @@ static void gst_kaldinnet2onlinedecoder_class_init(
   g_object_class_install_property(
 	  gobject_class,
 	  PROP_LATTICE,
-	  g_param_spec_boolean("lattice", "transition FST",
+	  g_param_spec_boolean("lattice", "word symbol FST",
 		  "Lattice states",
 		  DEFAULT_LATTICE,
 		  (GParamFlags)G_PARAM_READWRITE));
