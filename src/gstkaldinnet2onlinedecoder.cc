@@ -97,6 +97,7 @@ enum {
   PROP_NUM_NBEST,
   PROP_WORD_BOUNDARY_FILE,
   PROP_MIN_WORDS_FOR_IVECTOR,
+  PROP_LATTICE,
   PROP_LAST
 };
 
@@ -111,6 +112,7 @@ enum {
 #define DEAFULT_USE_THREADED_DECODER false
 #define DEFAULT_NUM_NBEST 1
 #define DEFAULT_MIN_WORDS_FOR_IVECTOR 2
+#define DEFAULT_LATTICE false
 
 /**
  * Some structs used for storing recognition results
@@ -398,6 +400,14 @@ static void gst_kaldinnet2onlinedecoder_class_init(
           DEFAULT_MIN_WORDS_FOR_IVECTOR,
           (GParamFlags) G_PARAM_READWRITE));
 
+  g_object_class_install_property(
+	  gobject_class,
+	  PROP_LATTICE,
+	  g_param_spec_boolean("lattice", "transition FST",
+		  "Lattice states",
+		  DEFAULT_LATTICE,
+		  (GParamFlags)G_PARAM_READWRITE));
+
   gst_kaldinnet2onlinedecoder_signals[PARTIAL_RESULT_SIGNAL] = g_signal_new(
       "partial-result", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET(Gstkaldinnet2onlinedecoderClass, partial_result),
@@ -651,9 +661,11 @@ static void gst_kaldinnet2onlinedecoder_set_property(GObject * object,
       break;
     case PROP_ADAPTATION_STATE:
       {
+		gboolean reset = true;
         if (G_VALUE_HOLDS_STRING(value)) {
           gchar * adaptation_state_string = g_value_dup_string(value);
           if (strlen(adaptation_state_string) > 0) {
+			reset = false;
             std::istringstream str(adaptation_state_string);
             try {
               filter->adaptation_state->Read(str, false);
@@ -663,14 +675,10 @@ static void gst_kaldinnet2onlinedecoder_set_property(GObject * object,
               filter->adaptation_state = new OnlineIvectorExtractorAdaptationState(
                   filter->feature_info->ivector_extractor_info);
             }
-          } else {
-            GST_DEBUG_OBJECT(filter, "Resetting adaptation state");
-            delete filter->adaptation_state;
-            filter->adaptation_state = new OnlineIvectorExtractorAdaptationState(
-                filter->feature_info->ivector_extractor_info);
           }
 		  g_free(adaptation_state_string);
-        } else {
+        } 
+		if (reset) {
           GST_DEBUG_OBJECT(filter, "Resetting adaptation state");
           delete filter->adaptation_state;
           filter->adaptation_state = new OnlineIvectorExtractorAdaptationState(
@@ -683,6 +691,9 @@ static void gst_kaldinnet2onlinedecoder_set_property(GObject * object,
       break;
     case PROP_MIN_WORDS_FOR_IVECTOR:
       filter->min_words_for_ivector = g_value_get_uint(value);
+      break;
+    case PROP_LATTICE:
+      filter->lattice = g_value_get_boolean(value);
       break;
     default:
       if (prop_id >= PROP_LAST) {
@@ -795,6 +806,9 @@ static void gst_kaldinnet2onlinedecoder_get_property(GObject * object,
       break;
     case PROP_MIN_WORDS_FOR_IVECTOR:
       g_value_set_uint(value, filter->min_words_for_ivector);
+      break;
+    case PROP_LATTICE:
+      g_value_set_boolean(value, filter->lattice);
       break;
     default:
       if (prop_id >= PROP_LAST) {
@@ -988,7 +1002,8 @@ static std::vector<NBestResult> gst_kaldinnet2onlinedecoder_nbest_results(
 
 static std::string gst_kaldinnet2onlinedecoder_full_final_result_to_json(
     Gstkaldinnet2onlinedecoder * filter,
-    const FullFinalResult &full_final_result) {
+    const FullFinalResult &full_final_result,
+	const CompactLattice &clat) {
 
   json_t *root = json_object();
   json_t *result_json_object = json_object();
@@ -1055,6 +1070,30 @@ static std::string gst_kaldinnet2onlinedecoder_full_final_result_to_json(
     }
 
     json_object_set_new(result_json_object, "hypotheses", nbest_json_arr);
+
+  }
+
+  if (filter->lattice) {
+	  json_t *lattice_json_arr = json_array();
+	  for (fst::StateIterator<CompactLattice> siter(clat); !siter.Done(); siter.Next()) {
+		  Lattice::StateId s = siter.Value();
+		  json_t *state_json_object = json_object();
+		  json_object_set_new(state_json_object, "id", json_integer(s));
+		  json_t *arc_json_arr = json_array();
+		  for (fst::ArcIterator<CompactLattice> aiter(clat, s); !aiter.Done(); aiter.Next()) {
+			  CompactLatticeArc arc = aiter.Value();
+			  json_t *arc_json_object = json_object();
+			  json_object_set_new(arc_json_object, "nid", json_integer(arc.nextstate));
+			  json_object_set_new(arc_json_object, "sym", json_string(filter->word_syms->Find(arc.olabel).data()));
+			  LatticeWeight weight = arc.weight.Weight();
+			  json_object_set_new(arc_json_object, "gw", json_real(weight.Value1()));
+			  json_object_set_new(arc_json_object, "aw", json_real(weight.Value2()));
+			  json_array_append(arc_json_arr, arc_json_object);
+		  }
+		  json_object_set_new(state_json_object, "arcs", arc_json_arr);
+		  json_array_append(lattice_json_arr, state_json_object);
+	  }
+	  json_object_set_new(result_json_object, "states", lattice_json_arr);
   }
 
   char *ret_strings = json_dumps(root, JSON_REAL_PRECISION(6));
@@ -1098,7 +1137,7 @@ static void gst_kaldinnet2onlinedecoder_final_result(
       g_signal_emit(filter, gst_kaldinnet2onlinedecoder_signals[FINAL_RESULT_SIGNAL], 0, best_transcript.c_str());
 
       std::string full_final_result_as_json =
-          gst_kaldinnet2onlinedecoder_full_final_result_to_json(filter, full_final_result);
+          gst_kaldinnet2onlinedecoder_full_final_result_to_json(filter, full_final_result, clat);
       GST_DEBUG_OBJECT(filter, "Final JSON: %s", full_final_result_as_json.c_str());
       g_signal_emit(filter, gst_kaldinnet2onlinedecoder_signals[FULL_FINAL_RESULT_SIGNAL], 0, full_final_result_as_json.c_str());
 
