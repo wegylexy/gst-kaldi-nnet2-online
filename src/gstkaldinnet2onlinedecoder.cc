@@ -1086,8 +1086,8 @@ static std::string gst_kaldinnet2onlinedecoder_full_final_result_to_json(
 			  json_object_set_new(arc_json_object, "ns", json_integer(arc.nextstate));
 			  json_object_set_new(arc_json_object, "ws", json_string(filter->word_syms->Find(arc.olabel).data()));
 			  LatticeWeight weight = arc.weight.Weight();
-			  json_object_set_new(arc_json_object, "gw", json_real(weight.Value1()));
-			  json_object_set_new(arc_json_object, "aw", json_real(weight.Value2()));
+			  json_object_set_new(arc_json_object, "aw", json_real(weight.Value1()));
+			  json_object_set_new(arc_json_object, "gw", json_real(weight.Value2()));
 			  json_array_append(arc_json_arr, arc_json_object);
 		  }
 		  json_object_set_new(state_json_object, "arcs", arc_json_arr);
