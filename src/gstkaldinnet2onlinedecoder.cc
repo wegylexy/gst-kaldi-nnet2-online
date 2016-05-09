@@ -1079,6 +1079,7 @@ static std::string gst_kaldinnet2onlinedecoder_full_final_result_to_json(
 		  Lattice::StateId s = siter.Value();
 		  json_t *state_json_object = json_object();
 		  json_object_set_new(state_json_object, "id", json_integer(s));
+		  json_object_set_new(state_json_object, "fw", json_real(clat.Final(s).Weight().Value1()));
 		  json_t *arc_json_arr = json_array();
 		  for (fst::ArcIterator<CompactLattice> aiter(clat, s); !aiter.Done(); aiter.Next()) {
 			  CompactLatticeArc arc = aiter.Value();
