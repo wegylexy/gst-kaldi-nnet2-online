@@ -1075,7 +1075,7 @@ static std::string gst_kaldinnet2onlinedecoder_full_final_result_to_json(
 
   if (filter->lattice) {
 	  std::stringstream ss;
-	  WriteCompactLattice(ss, true, clat);
+	  WriteCompactLattice(ss, false, clat);
 	  json_object_set_new(result_json_object, "lattice", json_string(ss.str().data()));
   }
 
