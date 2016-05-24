@@ -1074,27 +1074,9 @@ static std::string gst_kaldinnet2onlinedecoder_full_final_result_to_json(
   }
 
   if (filter->lattice) {
-	  json_t *lattice_json_arr = json_array();
-	  for (fst::StateIterator<CompactLattice> siter(clat); !siter.Done(); siter.Next()) {
-		  Lattice::StateId s = siter.Value();
-		  json_t *state_json_object = json_object();
-		  json_object_set_new(state_json_object, "id", json_integer(s));
-		  json_object_set_new(state_json_object, "fw", json_real(clat.Final(s).Weight().Value1()));
-		  json_t *arc_json_arr = json_array();
-		  for (fst::ArcIterator<CompactLattice> aiter(clat, s); !aiter.Done(); aiter.Next()) {
-			  CompactLatticeArc arc = aiter.Value();
-			  json_t *arc_json_object = json_object();
-			  json_object_set_new(arc_json_object, "ns", json_integer(arc.nextstate));
-			  json_object_set_new(arc_json_object, "ws", json_string(filter->word_syms->Find(arc.olabel).data()));
-			  LatticeWeight weight = arc.weight.Weight();
-			  json_object_set_new(arc_json_object, "gw", json_real(weight.Value1()));
-			  json_object_set_new(arc_json_object, "aw", json_real(weight.Value2()));
-			  json_array_append(arc_json_arr, arc_json_object);
-		  }
-		  json_object_set_new(state_json_object, "arcs", arc_json_arr);
-		  json_array_append(lattice_json_arr, state_json_object);
-	  }
-	  json_object_set_new(result_json_object, "states", lattice_json_arr);
+	  std::stringstream ss;
+	  WriteCompactLattice(ss, true, clat);
+	  json_object_set_new(result_json_object, "lattice", json_string(ss.str().data()));
   }
 
   char *ret_strings = json_dumps(root, JSON_REAL_PRECISION(6));
