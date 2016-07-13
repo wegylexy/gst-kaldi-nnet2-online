@@ -529,7 +529,7 @@ static void gst_kaldinnet2onlinedecoder_init(
   int32 i = 0;
   for (vector<std::pair<std::string, SimpleOptions::OptionInfo> >::iterator dx =
       option_info_list.begin(); dx != option_info_list.end(); dx++) {
-    std::pair<std::string, SimpleOptions::OptionInfo> result = (*dx);
+    std::pair<std::string, SimpleOptions::OptionInfo> &result = *dx;
     SimpleOptions::OptionInfo option_info = result.second;
     std::string name = result.first;
     switch (option_info.type) {
