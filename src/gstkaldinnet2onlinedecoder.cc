@@ -1015,7 +1015,8 @@ static std::string gst_kaldinnet2onlinedecoder_full_final_result_to_json(
 
   if (full_final_result.nbest_results.size() > 0) {
     BaseFloat frame_shift = filter->feature_info->FrameShiftInSeconds();
-    json_object_set_new(root, "segment-start",  json_real(filter->segment_start_time));
+	json_object_set_new(root, "frame-shift", json_real(frame_shift));
+	json_object_set_new(root, "segment-start",  json_real(filter->segment_start_time));
 
     json_object_set_new(root, "segment-length",  json_real(full_final_result.nbest_results[0].num_frames * frame_shift));
     json_object_set_new(root, "total-length",  json_real(filter->total_time_decoded));
